@@ -88,6 +88,7 @@ ATTACKER_NMAP_INIT_SPORT = 50000
 NMAP_SCAN_DELAY_PER_PACKET = 0.03
 ATTACKER_PID_NMAP = 7000
 
+SIMULATED_WEBSERVER_PID = 80  # Example PID for web server process
 # DVWA Exploitation Constants
 ATTACKER_HTTP_INIT_PORT = 51000
 SQLI_TARGET_PATH = "/dvwa/vulnerabilities/sqli/?id={payload}&Submit=Submit#" # GET request
@@ -107,7 +108,6 @@ VIDEO_PACKET_SIZE_MIN = 1000
 VIDEO_PACKET_SIZE_MAX = 1400
 INTER_PACKET_DELAY_SECONDS = 0.05
 SIMULATED_CLIENT_PID_START = 5000
-SIMULATED_WEBSERVER_PID = 80  # Example PID for web server process
 DEFAULT_CLIENT_UID = 1000
 DEFAULT_SERVER_UID = 0  # Typically root or www-data for server processes
 
