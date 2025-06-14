@@ -303,18 +303,32 @@ class Host:
 
     def write_events_to_csv(self, csv_filename: str | None):
         """Writes all collected host events to a CSV file."""
-        if csv_filename and self.host_events:
+        if csv_filename: # Changed condition
             full_path = os.path.join(self.output_dir, csv_filename)
-            print(f"Writing {len(self.host_events)} events for {self.hostname} to {full_path}...")
+            # Added print statement for diagnostics
+            print(f"Attempting to write {len(self.host_events)} events for {self.hostname} to {full_path}...")
+
+            # Define default fieldnames for the header, in case host_events is empty
+            default_fieldnames = [
+                "Timestamp", "PID", "PPID", "UID", "Comm", "EventType",
+                "Syscall", "SrcIP", "DstIP", "SrcPort", "DstPort", "Details"
+            ]
+
             with open(full_path, 'w', newline='') as csvfile:
-                if not self.host_events: # Should not happen due to check above, but good practice
-                    return
-                # Use the keys from the first event dictionary as headers
-                fieldnames = self.host_events[0].keys()
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(self.host_events)
-            print(f"Finished writing events for {self.hostname} to {full_path}")
+                if self.host_events:
+                    # Use keys from the first event if events exist
+                    fieldnames = self.host_events[0].keys() # type: ignore
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(self.host_events)
+                    print(f"Finished writing {len(self.host_events)} events for {self.hostname} to {full_path}")
+                else:
+                    # If no events, write only the header
+                    writer = csv.DictWriter(csvfile, fieldnames=default_fieldnames)
+                    writer.writeheader()
+                    print(f"Finished writing header (0 events) for {self.hostname} to {full_path}")
+        else:
+            print(f"Skipping CSV writing for {self.hostname} as csv_filename was not provided.")
 
 
 # Host Subclasses
@@ -1808,6 +1822,7 @@ if __name__ == "__main__":
     if isinstance(client2, ClientNormal2) and isinstance(dvwa_server, WebServerDVWA) and isinstance(faucet_controller, FaucetController):
         video_stream_start_delay_seconds = 5
         video_stream_event_time = sim_start_time + datetime.timedelta(seconds=video_stream_start_delay_seconds)
+            print(f"DEBUG: Scheduling initial video stream for {client2.hostname} at {master_clock.get_timestamp_str(video_stream_event_time)}")
         # VIDEO_STREAM_ACTIVE_DURATION_SECONDS = 30 # Removed this line
         client2.start_video_stream(event_scheduler, master_clock, dvwa_server, faucet_controller,
                                    video_stream_event_time, args.duration) # Pass total sim duration in minutes
@@ -1819,6 +1834,7 @@ if __name__ == "__main__":
        isinstance(router_gateway, RouterGateway) and isinstance(faucet_controller, FaucetController):
         web_browse_start_delay_seconds = 2
         web_browse_event_time = sim_start_time + datetime.timedelta(seconds=web_browse_start_delay_seconds)
+        print(f"DEBUG: Scheduling initial web browsing for {client1.hostname} at {master_clock.get_timestamp_str(web_browse_event_time)}")
         client1.start_web_browsing(event_scheduler, master_clock, DNS_QUERY_NAME, dvwa_server,
                                    router_gateway, faucet_controller, web_browse_event_time, args.duration)
     else:
@@ -1832,6 +1848,7 @@ if __name__ == "__main__":
        isinstance(faucet_controller, FaucetController):
         # NMAP_SCAN_START_DELAY_SECONDS is already defined
         nmap_scan_event_time = sim_start_time + datetime.timedelta(seconds=NMAP_SCAN_START_DELAY_SECONDS)
+        print(f"DEBUG: Scheduling initial Nmap scan for {attacker.hostname} at {master_clock.get_timestamp_str(nmap_scan_event_time)}")
         attacker.start_nmap_scan(event_scheduler, master_clock, NMAP_TARGET_IPS,
                                 NMAP_TARGET_PORTS_COMMON, router_gateway,
                                 faucet_controller, ALL_HOSTS, nmap_scan_event_time,
@@ -1844,6 +1861,7 @@ if __name__ == "__main__":
        isinstance(router_gateway, RouterGateway) and isinstance(faucet_controller, FaucetController):
         exploitation_start_delay_seconds = 20 # Start after Nmap might have found open ports
         exploitation_event_time = sim_start_time + datetime.timedelta(seconds=exploitation_start_delay_seconds)
+        print(f"DEBUG: Scheduling initial DVWA exploitation for {attacker.hostname} at {master_clock.get_timestamp_str(exploitation_event_time)}")
         attacker.start_dvwa_exploitation(event_scheduler, master_clock, dvwa_server,
                                         router_gateway, faucet_controller, exploitation_event_time)
     else:
