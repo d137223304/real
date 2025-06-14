@@ -229,7 +229,7 @@ class Attacker(Host):
         self.http_client_port_counter = ATTACKER_HTTP_INIT_PORT # Separate port counter for exploit HTTP sessions
 
 
-    def start_dvwa_exploitation(self, scheduler, clock, dvwa_server_host: WebServerDVWA,
+    def start_dvwa_exploitation(self, scheduler, clock, dvwa_server_host: 'WebServerDVWA',
                                 router_gateway_host: 'RouterGateway', faucet_controller_host: Host,
                                 exploitation_start_dt: datetime.datetime):
 
@@ -265,7 +265,7 @@ class Attacker(Host):
                                         next_action_details, session_key)))
         print(f"{clock.get_timestamp_str(exploitation_start_dt)}: Attacker {self.ip_address} (PID {ATTACKER_PID_EXPLOIT}) scheduled DVWA exploitation sequence.")
 
-    def send_http_syn_for_exploit(self, clock, scheduler, target_server_host: WebServerDVWA,
+    def send_http_syn_for_exploit(self, clock, scheduler, target_server_host: 'WebServerDVWA',
                                   router_gateway_host: 'RouterGateway', faucet_controller_host: Host,
                                   client_http_port: int, client_seq: int, next_action_details: dict, session_key: tuple):
         current_time = clock.get_time()
@@ -297,7 +297,7 @@ class Attacker(Host):
                                   args=(clock, scheduler, self, faucet_controller_host, syn_pkt,
                                         self.handle_http_syn_ack_for_exploit, next_action_details)))
 
-    def handle_http_syn_ack_for_exploit(self, clock, scheduler, target_server_host: WebServerDVWA,
+    def handle_http_syn_ack_for_exploit(self, clock, scheduler, target_server_host: 'WebServerDVWA',
                                         router_gateway_host: 'RouterGateway', faucet_controller_host: Host,
                                         server_syn_ack_pkt: IP, next_action_details: dict):
         current_time = clock.get_time()
@@ -335,7 +335,7 @@ class Attacker(Host):
                                   args=(clock, scheduler, target_server_host, router_gateway_host, faucet_controller_host, session_key)))
         # print(f"{clock.get_timestamp_str(current_time)}: Attacker {self.ip_address} ACKed HTTP for exploit. Scheduled first exploit request.")
 
-    def send_next_exploit_request(self, clock, scheduler, target_server_host: WebServerDVWA,
+    def send_next_exploit_request(self, clock, scheduler, target_server_host: 'WebServerDVWA',
                                   router_gateway_host: 'RouterGateway', faucet_controller_host: Host, session_key: tuple):
         session = self.http_sessions.get(session_key)
         if not session or not session['actions']:
@@ -363,7 +363,7 @@ class Attacker(Host):
 
         self.send_http_exploit_payload(clock, scheduler, target_server_host, router_gateway_host, faucet_controller_host, exploit_details, session_key)
 
-    def send_http_exploit_payload(self, clock, scheduler, target_server_host: WebServerDVWA,
+    def send_http_exploit_payload(self, clock, scheduler, target_server_host: 'WebServerDVWA',
                                   router_gateway_host: 'RouterGateway', faucet_controller_host: Host,
                                   exploit_details: dict, session_key: tuple):
         session = self.http_sessions.get(session_key)
@@ -378,7 +378,7 @@ class Attacker(Host):
         method = exploit_details['type']
         payload_body_str = exploit_details.get('payload_str', "") # For POST requests
 
-        http_request_line_and_headers = f"{method} {path} HTTP/1.1\r\nHost: {HOSTNAME_DVWA.rstrip('.')}\r\nUser-Agent: {HTTP_USER_AGENT} (Kali Attacker Exploit Tool)\r\nConnection: keep-alive\r\nAccept: text/html,application/xhtml+xml;q=0.9\r\n"
+        http_request_line_and_headers = f"{method} {path} HTTP/1.1\r\nHost: {VICTIM_WEBSRV_DVWA_HOSTNAME.rstrip('.')}\r\nUser-Agent: {HTTP_USER_AGENT} (Kali Attacker Exploit Tool)\r\nConnection: keep-alive\r\nAccept: text/html,application/xhtml+xml;q=0.9\r\n"
         if method == "POST":
             http_request_line_and_headers += f"Content-Type: application/x-www-form-urlencoded\r\nContent-Length: {len(payload_body_str.encode('utf-8'))}\r\n"
 
@@ -412,7 +412,7 @@ class Attacker(Host):
                                   args=(clock, scheduler, self, faucet_controller_host, request_pkt)))
 
 
-    def handle_http_response_for_exploit(self, clock, scheduler, target_server_host: WebServerDVWA,
+    def handle_http_response_for_exploit(self, clock, scheduler, target_server_host: 'WebServerDVWA',
                                          router_gateway_host: 'RouterGateway', faucet_controller_host: Host,
                                          server_response_packet: IP):
         current_time = clock.get_time()
@@ -468,7 +468,7 @@ class Attacker(Host):
             # del self.http_sessions[session_key] # Clean up session
 
     def start_nmap_scan(self, scheduler, clock, target_ips: list, ports_to_scan: list,
-                        router_gateway_host: Host, faucet_controller_host: Host,
+                        router_gateway_host: 'RouterGateway', faucet_controller_host: Host,
                         all_hosts_map: dict, scan_start_dt: datetime.datetime):
 
         self.add_host_event(scan_start_dt, ATTACKER_PID_NMAP, 1, 0, "nmap",
@@ -1658,6 +1658,7 @@ if __name__ == "__main__":
 
     # Example of scheduling video streaming activity
     sim_start_time = master_clock.get_time() # Capture the actual start time of the simulation clock
+    simulation_end_time = sim_start_time + datetime.timedelta(minutes=args.duration)
 
     # --- Schedule ClientNormal2 Video Streaming ---
     if isinstance(client2, ClientNormal2) and isinstance(dvwa_server, WebServerDVWA) and isinstance(faucet_controller, FaucetController):
