@@ -439,10 +439,11 @@ class Attacker(Host):
 
         event_time = current_time + datetime.timedelta(seconds=0.02) # RTT
         # Server uses its generic handle_http_syn, but needs Attacker's specific SYN-ACK handler
+        # Pass router_gateway_host as the router_gateway_ref argument
         scheduler.add_event(Event(event_time, 1, target_server_host.handle_http_syn,
                                   f"DVWA handles Attacker HTTP SYN from {self.ip_address}",
                                   args=(clock, scheduler, self, faucet_controller_host, syn_pkt,
-                                        self.handle_http_syn_ack_for_exploit, next_action_details)))
+                                        self.handle_http_syn_ack_for_exploit, next_action_details, router_gateway_host)))
 
     def handle_http_syn_ack_for_exploit(self, clock, scheduler, target_server_host: 'WebServerDVWA',
                                         router_gateway_host: 'RouterGateway', faucet_controller_host: Host,
@@ -861,7 +862,7 @@ class WebServerDVWA(Host):
 
     def handle_http_syn(self, clock, scheduler, client_host, faucet_controller_host, client_syn_packet,
                         client_syn_ack_handler_method, # New parameter: method on client/attacker to call
-                        next_client_action_details):
+                        next_client_action_details, router_gateway_ref=None): # Added router_gateway_ref
         client_ip = client_syn_packet[IP].src
         client_port = client_syn_packet[TCP].sport
         server_initial_seq = random.randint(0, 2**32 - 1)
@@ -889,10 +890,41 @@ class WebServerDVWA(Host):
                             HTTP_SERVER_PORT, client_port, f"HTTP SYN-ACK to {client_ip}:{client_port}")
 
         event_time = packet_time + datetime.timedelta(seconds=0.01) # RTT for SYN-ACK to reach client
+
+        # Determine the correct arguments for the callback based on the client type.
+        # The Attacker class is defined before WebServerDVWA, so isinstance will work.
+        callback_args = None
+        if isinstance(client_host, Attacker): # client_host is the Attacker instance
+            # Attacker's callback (handle_http_syn_ack_for_exploit) expects router_gateway_ref.
+            if router_gateway_ref is None:
+                print(f"CRITICAL WARNING in handle_http_syn: router_gateway_ref is None for an Attacker callback. Client IP: {client_host.ip_address}. This might lead to errors.")
+                # Even if None, pass it along; the callback might have its own handling or error out there.
+                # The primary goal here is to ensure the correct number of arguments if the method expects it.
+
+            callback_args = (
+                clock,
+                scheduler,
+                self,  # self is the WebServerDVWA instance, becomes target_server_host for attacker
+                router_gateway_ref, # This is the RouterGateway instance for the attacker
+                faucet_controller_host,
+                syn_ack_pkt, # This is the server_syn_ack_pkt for the attacker
+                next_client_action_details
+            )
+        else:
+            # Other clients (e.g., ClientNormal1) have callbacks that don't need router_gateway_ref.
+            callback_args = (
+                clock,
+                scheduler,
+                self, # self is the WebServerDVWA instance
+                faucet_controller_host,
+                syn_ack_pkt,
+                next_client_action_details
+            )
+
         # Call the specific handler provided by the client/attacker
         scheduler.add_event(Event(event_time, 1, client_syn_ack_handler_method,
                                   f"Client/Attacker {client_ip} handles HTTP SYN-ACK from {self.ip_address}",
-                                  args=(clock, scheduler, self, faucet_controller_host, syn_ack_pkt, next_client_action_details)))
+                                  args=callback_args))
         # print(f"{clock.get_timestamp_str(packet_time)}: DVWA ({self.ip_address}) sent HTTP SYN-ACK to {client_ip}:{client_port}. Callback: {client_syn_ack_handler_method.__name__}")
 
 
