@@ -44,16 +44,69 @@ DNS_SERVER_IP = ROUTER_INTERNAL_IP # Router acts as DNS forwarder/server
 DNS_QUERY_NAME = VICTIM_WEBSRV_DVWA_HOSTNAME + "." # Ensure FQDN ends with a dot
 HTTP_SERVER_PORT = 80
 CLIENT1_HTTP_INIT_PORT = 49200
-DVWA_PAGES = ["/dvwa/login.php", "/dvwa/vulnerabilities/sqli/", "/dvwa/vulnerabilities/xss_r/", "/dvwa/phpinfo.php", "/dvwa/about.php"] # Added more diverse pages
+DVWA_PAGES = [
+    "/dvwa/login.php",
+    "/dvwa/index.php",
+    "/dvwa/instructions.php",
+    "/dvwa/setup.php",
+    "/dvwa/vulnerabilities/brute/",
+    "/dvwa/vulnerabilities/exec/",
+    "/dvwa/vulnerabilities/csrf/",
+    "/dvwa/vulnerabilities/fi/?page=include.php",
+    "/dvwa/vulnerabilities/upload/",
+    "/dvwa/vulnerabilities/sqli/",
+    "/dvwa/vulnerabilities/sqli_blind/",
+    "/dvwa/vulnerabilities/xss_d/", # DOM XSS
+    "/dvwa/vulnerabilities/xss_r/", # Reflected XSS
+    "/dvWA/vulnerabilities/xss_s/", # Stored XSS - Note: Case variation for testing robustness
+    "/dvwa/security.php",
+    "/dvwa/phpinfo.php",
+    "/dvwa/about.php",
+    # Add some generic-looking paths
+    "/articles/article1.html",
+    "/products/product_page.php?id=123",
+    "/services/details.asp",
+    "/contact.php",
+    "/blog/categories/news/",
+    "/docs/api/v1/",
+    "/user/profile.php",
+    "/search?query=example",
+    "/static/css/theme.css",
+    "/static/js/main.js",
+    "/img/logo.png",
+    "/img/banner.jpeg"
+]
+CLIENT1_BROWSE_DURATION_PERCENTAGE = 0.8 # Client browses for 80% of total simulation time
+CLIENT1_PAGES_PER_FORM_SUBMISSION = 5  # Submit a form every 5 pages
+CLIENT2_STREAMING_DURATION_PERCENTAGE = 0.75 # Client streams for 75% of total simulation time
+
 DVWA_LOGIN_PAYLOAD = "username=admin&password=password&Login=Login"
 DVWA_BENIGN_FORM_TARGET = "/dvwa/vulnerabilities/exec/" # Example target for benign POST
 DVWA_BENIGN_FORM_PAYLOAD = "ip=127.0.0.1&submit=Submit" # Benign, as it's just pinging localhost within the container
+
+DVWA_BENIGN_FORMS = [
+    {'target': "/dvwa/vulnerabilities/exec/", 'payload': "ip=127.0.0.1&submit=Submit", 'method': 'POST'},
+    {'target': "/dvwa/vulnerabilities/csrf/", 'payload': "password_new=benignpass&password_conf=benignpass&Change=Change", 'method': 'POST'},
+    {'target': "/dvwa/vulnerabilities/sqli/", 'payload': "id=1&Submit=Submit", 'method': 'GET'}, # Benign SQLi page view
+    {'target': "/dvwa/vulnerabilities/xss_r/", 'payload': "name=BenignTester", 'method': 'GET'}, # Benign reflected XSS test
+    {'target': "/dvwa/vulnerabilities/brute/", 'payload': "username=benign&password=test&Login=Login", 'method': 'GET'} # Attempting a GET to brute force page (might be a login form)
+]
+
 HTTP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 
 
 # Nmap Scan Traffic Constants
 NMAP_TARGET_IPS = [VICTIM_WEBSRV_DVWA_IP, VICTIM_VULNSRV_METASPLOITABLE_IP]
-NMAP_TARGET_PORTS_COMMON = [21, 22, 23, 25, 53, 80, 110, 139, 443, 445, 3306, 3389, 5432, 5900, 6000, 8009, 8080, 8180]
+NMAP_TARGET_PORTS_COMMON = list(set([ # Using set to avoid duplicates if any are manually added
+    20, 21, 22, 23, 25, 53, 67, 68, 69, 80, 110, 111, 123, 135, 137, 138, 139, 143, 161, 162,
+    179, 389, 443, 445, 465, 500, 512, 513, 514, 515, 520, 546, 547, 554, 587, 631, 636,
+    873, 990, 993, 995, 1080, 1194, 1433, 1434, 1521, 1701, 1723, 1812, 1813, 2000, 2049,
+    2222, 2375, 3000, 3260, 3283, 3306, 3389, 4369, 5000, 5060, 5061, 5222, 5432, 5631,
+    5666, 5672, 5900, 5901, 5902, 5903, 6000, 6001, 6379, 6443, 6667, 7000, 7070, 8000,
+    8009, 8080, 8081, 8443, 8888, 9000, 9090, 9200, 9300, 9418, 10000, 11211, 27017, 27018
+] + list(range(1, 1025)))) # Add all ports from 1-1024 as well
+NMAP_TARGET_PORTS_COMMON = sorted(list(set(NMAP_TARGET_PORTS_COMMON))) # Ensure uniqueness and order
+
 OPEN_PORTS = {
     VICTIM_WEBSRV_DVWA_IP: {80, 443}, # HTTP, HTTPS (simulated as open for TCP SYN scan)
     VICTIM_VULNSRV_METASPLOITABLE_IP: { # Common Metasploitable2 ports
@@ -86,16 +139,55 @@ OPEN_PORTS = {
 }
 ATTACKER_NMAP_INIT_SPORT = 50000
 NMAP_SCAN_DELAY_PER_PACKET = 0.03
+NMAP_SCAN_START_DELAY_SECONDS = 10 # Existing constant, can be adjusted
+NMAP_SCAN_INTERVAL_MINUTES = 60 # How often to repeat the full Nmap scan
 ATTACKER_PID_NMAP = 7000
 
 SIMULATED_WEBSERVER_PID = 80  # Example PID for web server process
 # DVWA Exploitation Constants
 ATTACKER_HTTP_INIT_PORT = 51000
 SQLI_TARGET_PATH = "/dvwa/vulnerabilities/sqli/?id={payload}&Submit=Submit#" # GET request
-SQLI_PAYLOADS = ["1' OR '1'='1", "1' AND 1=2 UNION SELECT user, password FROM users WHERE user_id = '1"] # Example payloads
+SQLI_PAYLOADS = [
+    "1' OR '1'='1",
+    "1' OR '1'='1' -- ",
+    "1' OR '1'='1' # ",
+    "1' OR 1=1 -- ",
+    "1' OR 1=1 # ",
+    "1' OR 'a'='a",
+    "1' OR 'a'='a' -- ",
+    "1' OR 'a'='a' # ",
+    "1' OR 1 -- ", # Common bypass
+    "1' OR 1 #", # Common bypass
+    "1 UNION SELECT NULL, @@version -- ", # Get DB version (MySQL)
+    "1 UNION SELECT NULL, version() -- ", # Get DB version (PostgreSQL)
+    "1 UNION SELECT NULL, table_name FROM information_schema.tables -- ",
+    "1 UNION SELECT NULL, schema_name FROM information_schema.schemata -- ",
+    "1' AND 1=2 UNION SELECT user, password FROM users WHERE user_id = '1", # Original
+    "1' UNION SELECT group_concat(column_name), NULL FROM information_schema.columns WHERE table_name='users' -- ",
+    "'; SELECT SLEEP(5); --", # Time-based blind SQLi
+    "1 OR SLEEP(5)", # Time-based blind SQLi
+    "1' OR IF(1=1, SLEEP(5), 0) --", # Conditional time-based
+    "1 AND BENCHMARK(5000000,MD5('A'))" # Heavy query
+]
 CMD_INJ_TARGET_PATH = "/dvwa/vulnerabilities/exec/" # POST request
 CMD_INJ_FIELD_NAME = "ip" # Field to inject into
-CMD_INJ_PAYLOADS = ["127.0.0.1; ls -la /tmp", "127.0.0.1 && cat /etc/passwd"] # Example payloads
+CMD_INJ_PAYLOADS = [
+    "127.0.0.1; ls -la",
+    "127.0.0.1 && id",
+    "127.0.0.1; uname -a",
+    "127.0.0.1 && pwd",
+    "127.0.0.1; cat /etc/passwd",
+    "127.0.0.1 && cat /etc/hosts",
+    "127.0.0.1; ps aux",
+    "127.0.0.1 && netstat -tulnp",
+    "127.0.0.1; find / -name config.php 2>/dev/null", # Search for a file
+    "127.0.0.1 && echo '<script>alert(1)</script>' > /var/www/html/dvwa/hackable/uploads/test.html", # Write a file (simple XSS example)
+    "| ls -la", # Using pipe
+    "& id", # Using ampersand
+    "; uname -a", # Leading semicolon
+    "`id`", # Using backticks
+    "$(uname -a)" # Using $()
+]
 ATTACKER_PID_EXPLOIT = 7001 # PID for attacker's exploit script/actions
 DVWA_APACHE_PID = SIMULATED_WEBSERVER_PID # Defined earlier, e.g., 80
 DVWA_SHELL_PID = 1080 # PID for shell spawned by command injection
@@ -123,12 +215,11 @@ HOSTNAME_ROUTER_GATEWAY = "router.internal.local"
 # Helper function for packet creation
 def create_base_packet(clock, src_ip, sport, dst_ip, dport, flags="", payload=None, seq=None, ack=None, eth_src=None, eth_dst=None):
     """Creates a base Ethernet/IP/TCP packet with optional payload."""
-    # Placeholder MAC addresses if not provided - in a real SDN simulation, these would be learned or assigned
-    auto_eth_src = "00:00:00:00:00:01" if eth_src is None else eth_src # Example client MAC
-    auto_eth_dst = "00:00:00:00:00:02" if eth_dst is None else eth_dst # Example server MAC
-    # TODO: MACs should ideally be properties of Host objects or dynamically resolved via ARP simulation
+    # eth_src and eth_dst must be provided by the caller.
+    if eth_src is None or eth_dst is None:
+        raise ValueError("eth_src and eth_dst must be provided to create_base_packet")
 
-    eth = Ether(src=auto_eth_src, dst=auto_eth_dst)
+    eth = Ether(src=eth_src, dst=eth_dst)
     ip = IP(src=src_ip, dst=dst_ip)
     tcp = TCP(sport=sport, dport=dport, flags=flags)
 
@@ -156,9 +247,14 @@ def create_base_packet(clock, src_ip, sport, dst_ip, dport, flags="", payload=No
 
 class Host:
     """Base class for a host in the simulation."""
-    def __init__(self, ip_address, hostname, output_dir="output"):
+    def __init__(self, ip_address, hostname, output_dir="output", mac_address: str | None = None):
         self.ip_address = ip_address
         self.hostname = hostname
+        if mac_address is None:
+            # Generate a random MAC address if none is provided
+            self.mac_address = f"00:1A:2B:{random.randint(0, 255):02X}:{random.randint(0, 255):02X}:{random.randint(0, 255):02X}"
+        else:
+            self.mac_address = mac_address
         self.host_events = []  # Stores dictionaries for CSV rows
         self.pcap_writer = None
         self.output_dir = output_dir
@@ -271,8 +367,8 @@ class Attacker(Host):
         current_time = clock.get_time()
         syn_pkt = create_base_packet(clock, self.ip_address, client_http_port, target_server_host.ip_address,
                                      HTTP_SERVER_PORT, flags="S", seq=client_seq,
-                                     eth_src=self.hostname, # Placeholder MAC
-                                     eth_dst=router_gateway_host.mac_address_external_placeholder)
+                                     eth_src=self.mac_address,
+                                     eth_dst=router_gateway_host.mac_address_external)
 
         packet_timestamp = current_time.timestamp()
         syn_pkt.time = packet_timestamp
@@ -317,8 +413,8 @@ class Attacker(Host):
 
         ack_pkt = create_base_packet(clock, self.ip_address, client_http_port, server_ip, HTTP_SERVER_PORT,
                                      flags="A", seq=session['client_seq'], ack=session['server_ack'],
-                                     eth_src=self.hostname, # Placeholder MAC
-                                     eth_dst=router_gateway_host.mac_address_external_placeholder)
+                                     eth_src=self.mac_address,
+                                     eth_dst=router_gateway_host.mac_address_external)
 
         packet_timestamp = current_time.timestamp()
         ack_pkt.time = packet_timestamp
@@ -387,8 +483,8 @@ class Attacker(Host):
         request_pkt = create_base_packet(clock, self.ip_address, client_http_port, target_server_host.ip_address,
                                          HTTP_SERVER_PORT, flags="PA", payload=full_http_request_payload,
                                          seq=session['client_seq'], ack=session['server_ack'],
-                                         eth_src=self.hostname, # Placeholder MAC
-                                         eth_dst=router_gateway_host.mac_address_external_placeholder)
+                                         eth_src=self.mac_address,
+                                         eth_dst=router_gateway_host.mac_address_external)
 
         packet_timestamp = current_time.timestamp()
         request_pkt.time = packet_timestamp
@@ -437,8 +533,8 @@ class Attacker(Host):
 
         ack_for_response_pkt = create_base_packet(clock, self.ip_address, client_http_port, server_ip, HTTP_SERVER_PORT,
                                                   flags="A", seq=session['client_seq'], ack=session['server_ack'],
-                                                  eth_src=self.hostname, # Placeholder MAC
-                                                  eth_dst=router_gateway_host.mac_address_external_placeholder)
+                                                  eth_src=self.mac_address,
+                                                  eth_dst=router_gateway_host.mac_address_external)
 
         packet_timestamp = current_time.timestamp()
         ack_for_response_pkt.time = packet_timestamp
@@ -469,11 +565,13 @@ class Attacker(Host):
 
     def start_nmap_scan(self, scheduler, clock, target_ips: list, ports_to_scan: list,
                         router_gateway_host: 'RouterGateway', faucet_controller_host: Host,
-                        all_hosts_map: dict, scan_start_dt: datetime.datetime):
+                        all_hosts_map: dict, scan_start_dt: datetime.datetime,
+                        is_rescan: bool = False, simulation_end_time: datetime.datetime | None = None):
 
+        log_prefix = "Nmap Rescan" if is_rescan else "Nmap Scan"
         self.add_host_event(scan_start_dt, ATTACKER_PID_NMAP, 1, 0, "nmap",
                             "process_exec", "", self.ip_address, "", "", "",
-                            f"Nmap -sS scan initiated against {', '.join(target_ips)} for {len(ports_to_scan)} ports each.")
+                            f"{log_prefix}: -sS scan initiated against {', '.join(target_ips)} for {len(ports_to_scan)} ports each.")
 
         current_delay_offset = 0.0
         current_sport = ATTACKER_NMAP_INIT_SPORT
@@ -499,7 +597,18 @@ class Attacker(Host):
                 if current_sport > 65530: # Wrap around source port if needed
                     current_sport = ATTACKER_NMAP_INIT_SPORT
 
-        print(f"{clock.get_timestamp_str(scan_start_dt)}: Attacker {self.ip_address} (PID {ATTACKER_PID_NMAP}) scheduled {len(target_ips) * len(ports_to_scan)} Nmap -sS scan packets.")
+        print(f"{clock.get_timestamp_str(scan_start_dt)}: Attacker {self.ip_address} (PID {ATTACKER_PID_NMAP}) scheduled {len(target_ips) * len(ports_to_scan)} Nmap -sS {log_prefix.lower()} packets.")
+
+        if not is_rescan and simulation_end_time:
+            next_scan_time = scan_start_dt + datetime.timedelta(minutes=NMAP_SCAN_INTERVAL_MINUTES)
+            if next_scan_time < simulation_end_time:
+                # Pass simulation_end_time along for subsequent rescan scheduling checks
+                scheduler.add_event(Event(next_scan_time, 3, self.start_nmap_scan,
+                                          f"Attacker periodic Nmap Rescan to {', '.join(target_ips)}",
+                                          args=(scheduler, clock, target_ips, ports_to_scan,
+                                                router_gateway_host, faucet_controller_host,
+                                                all_hosts_map, next_scan_time, True, simulation_end_time)))
+                print(f"{clock.get_timestamp_str(scan_start_dt)}: Scheduled next Nmap rescan at {clock.get_timestamp_str(next_scan_time)}")
 
     def send_nmap_syn_packet(self, clock, scheduler, target_host: Host, target_port: int,
                              src_port: int, router_gateway_host: 'RouterGateway', faucet_controller_host: Host):
@@ -511,8 +620,8 @@ class Attacker(Host):
         # MAC addresses: Attacker -> Router's External MAC. Router then handles internal MACs.
         syn_pkt = create_base_packet(clock, self.ip_address, src_port, target_ip, target_port,
                                      flags="S", seq=client_initial_seq,
-                                     eth_src=self.hostname, # Using hostname as placeholder for MAC
-                                     eth_dst=router_gateway_host.mac_address_external_placeholder)
+                                     eth_src=self.mac_address,
+                                     eth_dst=router_gateway_host.mac_address_external)
 
         packet_timestamp = current_time.timestamp()
         syn_pkt.time = packet_timestamp # Ensure packet time is set from clock
@@ -560,8 +669,8 @@ class Attacker(Host):
             rst_seq = response_pkt[TCP].ack
             rst_pkt = create_base_packet(clock, self.ip_address, attacker_orig_sport, target_ip, target_port,
                                          flags="R", seq=rst_seq,
-                                         eth_src=self.hostname, # Placeholder MAC
-                                         eth_dst=router_gateway_host.mac_address_external_placeholder)
+                                         eth_src=self.mac_address,
+                                         eth_dst=router_gateway_host.mac_address_external)
 
             rst_pkt_timestamp = current_time.timestamp() # Can be same time or slightly after
             rst_pkt.time = rst_pkt_timestamp
@@ -619,7 +728,7 @@ class WebServerDVWA(Host):
 
             response_pkt = create_base_packet(clock, self.ip_address, dst_port, src_ip, src_port,
                                               flags="SA", seq=server_initial_seq, ack=ack_to_attacker_seq,
-                                              eth_src=router_gateway_host.mac_address_internal_placeholder, # From internal router MAC via target
+                                              eth_src=router_gateway_host.mac_address_internal, # Use actual MAC
                                               eth_dst=nmap_syn_packet[Ether].src) # To original querying MAC (attacker via router)
             log_message = f"Nmap SYN on OPEN port {dst_port} from {src_ip}:{src_port}. Sent SYN-ACK."
             event_desc = f"Target {self.ip_address} SYN-ACK for Nmap (port {dst_port} open)"
@@ -629,7 +738,7 @@ class WebServerDVWA(Host):
             # For a closed port, seq is often 0 and ack is the incoming SYN's seq + 1
             response_pkt = create_base_packet(clock, self.ip_address, dst_port, src_ip, src_port,
                                               flags="RA", seq=0, ack=nmap_syn_packet[TCP].seq + 1, # RA for Reset-Ack
-                                              eth_src=router_gateway_host.mac_address_internal_placeholder,
+                                              eth_src=router_gateway_host.mac_address_internal, # Use actual MAC
                                               eth_dst=nmap_syn_packet[Ether].src) # MAC of the packet that came in (Attacker via Router)
             log_message = f"Nmap SYN on CLOSED port {dst_port} from {src_ip}:{src_port}. Sent RST-ACK."
             event_desc = f"Target {self.ip_address} RST-ACK for Nmap (port {dst_port} closed)"
@@ -670,7 +779,8 @@ class WebServerDVWA(Host):
         }
 
         syn_ack_pkt = create_base_packet(clock, self.ip_address, HTTP_SERVER_PORT, client_ip, client_port,
-                                         flags="SA", seq=server_initial_seq, ack=client_syn_packet[TCP].seq + 1)
+                                         flags="SA", seq=server_initial_seq, ack=client_syn_packet[TCP].seq + 1,
+                                         eth_src=self.mac_address, eth_dst=client_host.mac_address)
 
         packet_time = clock.get_time()
         self.add_packet_to_pcap(syn_ack_pkt, timestamp=packet_time.timestamp())
@@ -780,7 +890,8 @@ class WebServerDVWA(Host):
         server_ack_for_client_data = http_request_packet[TCP].seq + client_data_len
 
         ack_pkt = create_base_packet(clock, self.ip_address, HTTP_SERVER_PORT, client_ip, client_port,
-                                     flags="A", seq=session['server_seq'], ack=server_ack_for_client_data)
+                                     flags="A", seq=session['server_seq'], ack=server_ack_for_client_data,
+                                     eth_src=self.mac_address, eth_dst=client_host.mac_address)
 
         current_time = clock.get_time()
         packet_timestamp = current_time.timestamp()
@@ -798,7 +909,8 @@ class WebServerDVWA(Host):
         # This response_data_pkt is what client will ACK.
         response_data_pkt = create_base_packet(clock, self.ip_address, HTTP_SERVER_PORT, client_ip, client_port,
                                          flags="PA", payload=full_response,
-                                         seq=session['server_seq'], ack=session['client_ack'])
+                                         seq=session['server_seq'], ack=session['client_ack'],
+                                         eth_src=self.mac_address, eth_dst=client_host.mac_address)
         response_data_pkt.time = response_event_time.timestamp() # ensure correct time for this packet
 
         # Add to PCAPs (server, client, faucet)
@@ -845,7 +957,8 @@ class WebServerDVWA(Host):
         }
 
         syn_ack_pkt = create_base_packet(clock, self.ip_address, STREAMING_SERVER_PORT, client_ip, client_port,
-                                         flags="SA", seq=server_initial_seq, ack=client_syn_packet[TCP].seq + 1)
+                                         flags="SA", seq=server_initial_seq, ack=client_syn_packet[TCP].seq + 1,
+                                         eth_src=self.mac_address, eth_dst=client_host.mac_address)
 
         # Add to relevant PCAPs
         packet_time = clock.get_time()
@@ -889,7 +1002,8 @@ class WebServerDVWA(Host):
         payload = os.urandom(payload_size)
 
         data_pkt = create_base_packet(clock, self.ip_address, STREAMING_SERVER_PORT, client_ip, client_port,
-                                      flags="PA", payload=payload, seq=session['server_seq'], ack=session['client_ack_of_server_seq'])
+                                      flags="PA", payload=payload, seq=session['server_seq'], ack=session['client_ack_of_server_seq'],
+                                      eth_src=self.mac_address, eth_dst=client_host.mac_address)
 
         packet_timestamp = current_time.timestamp()
         self.add_packet_to_pcap(data_pkt, timestamp=packet_timestamp)
@@ -936,14 +1050,14 @@ class VulnServerMetasploitable(Host):
             ack_to_attacker_seq = nmap_syn_packet[TCP].seq + 1
             response_pkt = create_base_packet(clock, self.ip_address, dst_port, src_ip, src_port,
                                               flags="SA", seq=server_initial_seq, ack=ack_to_attacker_seq,
-                                              eth_src=router_gateway_host.mac_address_internal_placeholder,
+                                              eth_src=router_gateway_host.mac_address_internal, # Use actual MAC
                                               eth_dst=nmap_syn_packet[Ether].src)
             log_message = f"Nmap SYN on OPEN port {dst_port} from {src_ip}:{src_port}. Sent SYN-ACK."
             event_desc = f"Target {self.ip_address} SYN-ACK for Nmap (port {dst_port} open)"
         else:
             response_pkt = create_base_packet(clock, self.ip_address, dst_port, src_ip, src_port,
                                               flags="RA", seq=0, ack=nmap_syn_packet[TCP].seq + 1,
-                                              eth_src=router_gateway_host.mac_address_internal_placeholder,
+                                              eth_src=router_gateway_host.mac_address_internal, # Use actual MAC
                                               eth_dst=nmap_syn_packet[Ether].src)
             log_message = f"Nmap SYN on CLOSED port {dst_port} from {src_ip}:{src_port}. Sent RST-ACK."
             event_desc = f"Target {self.ip_address} RST-ACK for Nmap (port {dst_port} closed)"
@@ -972,7 +1086,7 @@ class ClientNormal1(Host):
     def start_web_browsing(self, scheduler, clock, target_server_hostname: str,
                            target_http_server_obj: WebServerDVWA, # Actual WebServerDVWA object
                            dns_server_host: Host, faucet_controller_host: Host,
-                           browse_start_dt: datetime.datetime):
+                           browse_start_dt: datetime.datetime, total_sim_duration_minutes: int):
 
         self.http_pid_counter += 1
         process_pid = self.http_pid_counter
@@ -981,16 +1095,22 @@ class ClientNormal1(Host):
                             "process_exec", "", self.ip_address, "", "", "",
                             f"Start web browsing {target_server_hostname}")
 
+        browse_duration = total_sim_duration_minutes * CLIENT1_BROWSE_DURATION_PERCENTAGE
+        browse_end_time = browse_start_dt + datetime.timedelta(minutes=browse_duration)
+
         session_key = (target_server_hostname, HTTP_SERVER_PORT)
         self.http_sessions[session_key] = {
             'client_seq': 0, # Will be set before first SYN
             'server_ack': 0, # Will be set upon receiving SYN-ACK
             'dns_resolved_ip': None,
             'current_page_index': 0,
+            'pages_since_last_form': 0,
             'logged_in': False, # Specific to DVWA login state
+            'logged_in_attempted': False, # To ensure login is attempted at least once
             'process_pid': process_pid,
             'client_http_port': 0, # Will be set before first SYN
-            'target_server_obj': target_http_server_obj # Store the target server object
+            'target_server_obj': target_http_server_obj, # Store the target server object
+            'browse_end_time': browse_end_time
         }
 
         # Initiate DNS lookup
@@ -1009,7 +1129,14 @@ class ClientNormal1(Host):
         # Ensure target_hostname ends with a dot for absolute query if not already
         fqdn_target_hostname = target_hostname if target_hostname.endswith('.') else target_hostname + '.'
 
-        dns_req_pkt = Ether()/IP(dst=dns_server_host.ip_address, src=self.ip_address)/ \
+        # Assuming dns_server_host is the RouterGateway, use its internal MAC.
+        # If dns_server_host could be a different Host type, this might need adjustment
+        # or ensuring dns_server_host always has a mac_address_internal if it's a router.
+        # For this simulation, dns_server_host IS the router_gateway.
+        dest_mac = dns_server_host.mac_address_internal if hasattr(dns_server_host, 'mac_address_internal') else dns_server_host.mac_address
+
+        dns_req_pkt = Ether(src=self.mac_address, dst=dest_mac)/ \
+                      IP(dst=dns_server_host.ip_address, src=self.ip_address)/ \
                       UDP(sport=client_dns_port, dport=53)/ \
                       DNS(id=dns_query_id, rd=1, qd=DNSQR(qname=fqdn_target_hostname))
 
@@ -1093,7 +1220,8 @@ class ClientNormal1(Host):
         resolved_ip = session['dns_resolved_ip']
         current_time = clock.get_time()
         syn_pkt = create_base_packet(clock, self.ip_address, client_http_port, resolved_ip, HTTP_SERVER_PORT,
-                                     flags="S", seq=client_seq)
+                                     flags="S", seq=client_seq,
+                                     eth_src=self.mac_address, eth_dst=target_server_host.mac_address)
 
         packet_timestamp = current_time.timestamp()
         self.add_packet_to_pcap(syn_pkt, timestamp=packet_timestamp)
@@ -1134,7 +1262,8 @@ class ClientNormal1(Host):
         session['server_ack'] = server_syn_ack_pkt[TCP].seq + 1 # Server's SYN-ACK also consumes 1 seq number
 
         ack_pkt = create_base_packet(clock, self.ip_address, client_http_port, server_ip, HTTP_SERVER_PORT,
-                                     flags="A", seq=session['client_seq'], ack=session['server_ack'])
+                                     flags="A", seq=session['client_seq'], ack=session['server_ack'],
+                                     eth_src=self.mac_address, eth_dst=target_server_host.mac_address)
 
         packet_timestamp = current_time.timestamp()
         self.add_packet_to_pcap(ack_pkt, timestamp=packet_timestamp)
@@ -1179,7 +1308,8 @@ class ClientNormal1(Host):
 
         request_pkt = create_base_packet(clock, self.ip_address, client_http_port, resolved_ip, HTTP_SERVER_PORT,
                                          flags="PA", payload=full_http_request_str.encode('utf-8'), # Payload must be bytes
-                                         seq=session['client_seq'], ack=session['server_ack'])
+                                         seq=session['client_seq'], ack=session['server_ack'],
+                                         eth_src=self.mac_address, eth_dst=target_server_host.mac_address)
 
         packet_timestamp = current_time.timestamp()
         self.add_packet_to_pcap(request_pkt, timestamp=packet_timestamp)
@@ -1222,7 +1352,8 @@ class ClientNormal1(Host):
         session['server_ack'] = server_response_packet[TCP].seq + payload_len
 
         ack_for_response_pkt = create_base_packet(clock, self.ip_address, client_http_port, resolved_ip, HTTP_SERVER_PORT,
-                                                  flags="A", seq=session['client_seq'], ack=session['server_ack'])
+                                                  flags="A", seq=session['client_seq'], ack=session['server_ack'],
+                                                  eth_src=self.mac_address, eth_dst=target_server_host.mac_address)
 
         packet_timestamp = current_time.timestamp()
         self.add_packet_to_pcap(ack_for_response_pkt, timestamp=packet_timestamp)
@@ -1249,54 +1380,61 @@ class ClientNormal1(Host):
     def schedule_next_http_client_action(self, clock, scheduler, target_server_host: WebServerDVWA, faucet_controller_host: Host, session_key: tuple):
         session = self.http_sessions.get(session_key)
         if not session:
-            print(f"Error: No session for {session_key} to schedule next HTTP action.")
+            print(f"Error: No session for {session_key} to schedule next HTTP action for Client {self.ip_address}.")
             return
 
-        next_action = None
-        # User "thinking time" or page load rendering time before next action
-        delay_seconds = random.uniform(0.5, 2.5)
-
-        if not session.get('logged_in_attempted', False): # Check if login was ATTEMPTED
-            next_action = {'type': 'POST', 'path': '/dvwa/login.php', 'payload': DVWA_LOGIN_PAYLOAD}
-            session['logged_in_attempted'] = True
-            # The server's handle_http_request will set session['logged_in'] = True on DVWA if successful
-            # Here, client just assumes it will try to login. The server response will confirm.
-        elif session.get('logged_in', False) and session['current_page_index'] < len(DVWA_PAGES):
-            page_path = DVWA_PAGES[session['current_page_index']]
-            # Avoid re-requesting login.php if we are already logged in and it's the first page.
-            if page_path == "/dvwa/login.php" and session['current_page_index'] == 0:
-                 session['current_page_index'] +=1 # Skip it and try next page
-                 if session['current_page_index'] < len(DVWA_PAGES):
-                     page_path = DVWA_PAGES[session['current_page_index']]
-                 else: # Only login page in list, then do form
-                    next_action = {'type': 'POST', 'path': DVWA_BENIGN_FORM_TARGET, 'payload': DVWA_BENIGN_FORM_PAYLOAD}
-                    session['current_page_index'] += 1 # Mark as done with pages and form
-                    scheduler.add_event(Event(clock.get_time() + datetime.timedelta(seconds=delay_seconds), 2, self.send_http_request,
-                                              f"Client {self.ip_address} POST benign form to {target_server_host.hostname}",
-                                              args=(clock, scheduler, target_server_host, faucet_controller_host, next_action, session_key)))
-                    return
-
-            if session['current_page_index'] < len(DVWA_PAGES): # Re-check if we skipped login
-                next_action = {'type': 'GET', 'path': page_path}
-                session['current_page_index'] += 1
-        elif session.get('logged_in', False) and session['current_page_index'] == len(DVWA_PAGES): # Done with pages, try benign form
-            next_action = {'type': 'POST', 'path': DVWA_BENIGN_FORM_TARGET, 'payload': DVWA_BENIGN_FORM_PAYLOAD}
-            session['current_page_index'] += 1 # Mark as done with form
-        else: # All browsing actions done or failed to log in and no other pages to try
-            if not session.get('logged_in', False) and session.get('logged_in_attempted', False):
-                print(f"{clock.get_timestamp_str(clock.get_time())}: Client {self.ip_address} failed to log into DVWA or no further actions after login attempt. Ending session.")
-            else:
-                print(f"{clock.get_timestamp_str(clock.get_time())}: Client {self.ip_address} finished browsing DVWA or no pages left. Ending session.")
+        current_time = clock.get_time()
+        if 'browse_end_time' in session and current_time >= session['browse_end_time']:
+            print(f"{clock.get_timestamp_str(current_time)}: Client {self.ip_address} browsing session time ended for {session_key[0]}.")
             # TODO: Implement TCP FIN sequence from client to close connection
             # del self.http_sessions[session_key] # Clean up session
             return
 
+        next_action = None
+        delay_seconds = random.uniform(0.5, 3.0) # User "thinking time"
+
+        if not session.get('logged_in_attempted', False):
+            next_action = {'type': 'POST', 'path': '/dvwa/login.php', 'payload': DVWA_LOGIN_PAYLOAD}
+            session['logged_in_attempted'] = True
+            # Server response will set session['logged_in'] = True if successful via handle_http_request
+        else:
+            # If login was attempted, proceed with browsing or forms regardless of actual login success for some pages
+            if session.get('pages_since_last_form', 0) >= CLIENT1_PAGES_PER_FORM_SUBMISSION and DVWA_BENIGN_FORMS:
+                form_choice = random.choice(DVWA_BENIGN_FORMS)
+                next_action = {'type': form_choice['method'], 'path': form_choice['target'], 'payload': form_choice['payload']}
+                session['pages_since_last_form'] = 0
+                # print(f"DEBUG: Client {self.ip_address} submitting form: {next_action}")
+            else:
+                # Cycle through DVWA_PAGES
+                page_idx = session.get('current_page_index', 0)
+                page_path = DVWA_PAGES[page_idx % len(DVWA_PAGES)]
+
+                # Avoid re-requesting login.php via GET if we just tried POSTing to it or are considered logged in.
+                # This simple check might need refinement based on how session['logged_in'] is managed by server.
+                if page_path == "/dvwa/login.php" and session.get('logged_in_attempted', False) : # if logged_in_attempted is true, we just tried.
+                    page_idx +=1
+                    session['current_page_index'] = page_idx % len(DVWA_PAGES) # update before getting new path
+                    page_path = DVWA_PAGES[session['current_page_index']]
+
+
+                next_action = {'type': 'GET', 'path': page_path}
+                session['current_page_index'] = page_idx + 1 # This will naturally wrap with % in the next call
+                session['pages_since_last_form'] = session.get('pages_since_last_form', 0) + 1
+                # print(f"DEBUG: Client {self.ip_address} visiting page: {next_action}")
+
         if next_action:
-            event_time = clock.get_time() + datetime.timedelta(seconds=delay_seconds)
-            description = f"Client {self.ip_address} {next_action['type']} {next_action['path']} to {target_server_host.hostname}"
+            event_time = current_time + datetime.timedelta(seconds=delay_seconds)
+            # Ensure path is part of description if available
+            action_path_desc = next_action.get('path', 'unknown path')
+            description = f"Client {self.ip_address} {next_action['type']} {action_path_desc} to {target_server_host.hostname}"
+
             scheduler.add_event(Event(event_time, 2, self.send_http_request, description,
                                       args=(clock, scheduler, target_server_host, faucet_controller_host, next_action, session_key)))
-            # print(f"{clock.get_timestamp_str(clock.get_time())}: Scheduled next HTTP action: {description} at {clock.get_timestamp_str(event_time)}")
+        else:
+            # This case should ideally not be hit if browse_end_time is managed correctly.
+            print(f"{clock.get_timestamp_str(current_time)}: Client {self.ip_address} no next HTTP action decided for {session_key[0]}. Ending session actions.")
+            # TODO: Implement TCP FIN sequence
+            # if session_key in self.http_sessions: del self.http_sessions[session_key]
 
 
 class ClientNormal2(Host):
@@ -1306,7 +1444,7 @@ class ClientNormal2(Host):
         self.client_pid_counter = SIMULATED_CLIENT_PID_START
         self.active_streams = {} # Key: (server_ip, server_port), Value: {client_seq, server_ack_of_client_seq}
 
-    def start_video_stream(self, scheduler, clock, target_server_host: WebServerDVWA, faucet_controller_host: Host, stream_start_dt: datetime.datetime, stream_duration_seconds: int):
+    def start_video_stream(self, scheduler, clock, target_server_host: WebServerDVWA, faucet_controller_host: Host, stream_start_dt: datetime.datetime, total_sim_duration_minutes: int):
         self.current_streaming_port += random.randint(1, 10) # Increment to vary client port
         client_port = self.current_streaming_port
         self.client_pid_counter += 1
@@ -1315,6 +1453,8 @@ class ClientNormal2(Host):
         self.add_host_event(stream_start_dt, process_pid, 1, DEFAULT_CLIENT_UID, "chrome.exe", # Example process
                             "process_exec", "", self.ip_address, "", "", "",
                             f"Start video stream to {target_server_host.ip_address}:{STREAMING_SERVER_PORT}")
+
+        actual_stream_duration_seconds = int(total_sim_duration_minutes * 60 * CLIENT2_STREAMING_DURATION_PERCENTAGE)
 
         client_initial_seq = random.randint(0, 2**32 - 1)
         # Store client's perspective of the stream state
@@ -1325,14 +1465,15 @@ class ClientNormal2(Host):
 
         event = Event(stream_start_dt, 0, self.send_streaming_syn,
                       f"Client {self.ip_address}:{client_port} SYN for stream to {target_server_host.ip_address}",
-                      args=(clock, scheduler, target_server_host, faucet_controller_host, client_port, client_initial_seq, process_pid, stream_duration_seconds))
+                      args=(clock, scheduler, target_server_host, faucet_controller_host, client_port, client_initial_seq, process_pid, actual_stream_duration_seconds))
         scheduler.add_event(event)
-        print(f"{clock.get_timestamp_str(stream_start_dt)}: Client {self.ip_address}:{client_port} (PID: {process_pid}) scheduled video stream to {target_server_host.ip_address}. Duration: {stream_duration_seconds}s.")
+        print(f"{clock.get_timestamp_str(stream_start_dt)}: Client {self.ip_address}:{client_port} (PID: {process_pid}) scheduled video stream to {target_server_host.ip_address}. Duration: {actual_stream_duration_seconds}s.")
 
-    def send_streaming_syn(self, clock, scheduler, target_server_host: WebServerDVWA, faucet_controller_host: Host, client_port: int, client_seq: int, process_pid: int, stream_duration_seconds: int):
+    def send_streaming_syn(self, clock, scheduler, target_server_host: WebServerDVWA, faucet_controller_host: Host, client_port: int, client_seq: int, process_pid: int, actual_stream_duration_seconds: int):
         current_time = clock.get_time() # Should be == stream_start_dt from previous event if scheduled correctly
         syn_pkt = create_base_packet(clock, self.ip_address, client_port, target_server_host.ip_address,
-                                     STREAMING_SERVER_PORT, flags="S", seq=client_seq)
+                                     STREAMING_SERVER_PORT, flags="S", seq=client_seq,
+                                     eth_src=self.mac_address, eth_dst=target_server_host.mac_address)
 
         packet_timestamp = current_time.timestamp()
         self.add_packet_to_pcap(syn_pkt, timestamp=packet_timestamp)
@@ -1349,10 +1490,10 @@ class ClientNormal2(Host):
         event_time = current_time + datetime.timedelta(seconds=0.02) # Simulate RTT/processing delay
         scheduler.add_event(Event(event_time, 1, target_server_host.handle_streaming_syn, # Server's SYN handler for streaming
                                   f"Server {target_server_host.ip_address} handles stream SYN from {self.ip_address}:{client_port}",
-                                  args=(clock, scheduler, self, faucet_controller_host, syn_pkt, self.handle_streaming_syn_ack, stream_duration_seconds))) # Pass its own SYN-ACK handler
+                                  args=(clock, scheduler, self, faucet_controller_host, syn_pkt, self.handle_streaming_syn_ack, actual_stream_duration_seconds))) # Pass its own SYN-ACK handler
         # print(f"{clock.get_timestamp_str(current_time)}: Client {self.ip_address}:{client_port} sent streaming SYN to {target_server_host.ip_address}. Scheduled server handle_syn.")
 
-    def handle_streaming_syn_ack(self, clock, scheduler, target_server_host: WebServerDVWA, faucet_controller_host: Host, server_syn_ack_pkt: IP, stream_duration_seconds: int):
+    def handle_streaming_syn_ack(self, clock, scheduler, target_server_host: WebServerDVWA, faucet_controller_host: Host, server_syn_ack_pkt: IP, actual_stream_duration_seconds: int):
         current_time = clock.get_time()
         client_port = server_syn_ack_pkt[TCP].dport # This client's port
         server_ip = server_syn_ack_pkt[IP].src
@@ -1367,7 +1508,8 @@ class ClientNormal2(Host):
         session['server_ack_of_client_seq'] = server_syn_ack_pkt[TCP].seq + 1
 
         ack_pkt = create_base_packet(clock, self.ip_address, client_port, server_ip, STREAMING_SERVER_PORT,
-                                     flags="A", seq=session['client_seq'], ack=session['server_ack_of_client_seq'])
+                                     flags="A", seq=session['client_seq'], ack=session['server_ack_of_client_seq'],
+                                     eth_src=self.mac_address, eth_dst=target_server_host.mac_address)
 
         packet_timestamp = current_time.timestamp()
         self.add_packet_to_pcap(ack_pkt, timestamp=packet_timestamp)
@@ -1395,7 +1537,7 @@ class ClientNormal2(Host):
             print(f"WARNING: {clock.get_timestamp_str(current_time)}: Server {target_server_host.ip_address} has no active stream for {client_ip_port_tuple} upon client ACK.")
 
 
-        stream_end_time = current_time + datetime.timedelta(seconds=stream_duration_seconds)
+        stream_end_time = current_time + datetime.timedelta(seconds=actual_stream_duration_seconds)
 
         event_time = current_time + datetime.timedelta(seconds=INTER_PACKET_DELAY_SECONDS) # Server sends first data packet shortly after ACK
         scheduler.add_event(Event(event_time, 2, target_server_host.send_streaming_data_packet,
@@ -1412,10 +1554,12 @@ class FaucetController(Host):
 
 class RouterGateway(Host):
     def __init__(self, ip_address, hostname, external_ip_address, output_dir="output"):
-        super().__init__(ip_address, hostname, output_dir)
         self.external_ip_address = external_ip_address
-        self.mac_address_internal_placeholder = f"00:00:00:AA:BB:{random.randint(10,99):02X}" # Router's internal MAC
-        self.mac_address_external_placeholder = f"00:00:00:DD:EE:{random.randint(10,99):02X}" # Router's external MAC
+        # Define interface-specific MACs first
+        self.mac_address_internal = f"00:00:00:AA:BB:{random.randint(10,99):02X}" # Router's internal MAC
+        self.mac_address_external = f"00:00:00:DD:EE:{random.randint(10,99):02X}" # Router's external MAC
+        # Call superclass init, passing one of the MACs as the "primary" for the Host object itself
+        super().__init__(ip_address, hostname, output_dir, mac_address=self.mac_address_internal)
         # self.dns_cache = {} # Simple DNS cache if acting as a caching resolver
         # self.arp_cache_external = {} # IP -> MAC for external network
         # self.arp_cache_internal = {} # IP -> MAC for internal network
@@ -1471,7 +1615,7 @@ class RouterGateway(Host):
             # UDP src is 53 (DNS port), dport is client's original sport
             # DNS id matches query, qr=1 (response), aa=1 (authoritative for this direct resolution)
             # qd is copied from query, an is the answer record
-            dns_response_pkt = Ether(dst=query_packet[Ether].src, src=query_packet[Ether].dst)/ \
+            dns_response_pkt = Ether(dst=client_host_who_queried.mac_address, src=self.mac_address_internal)/ \
                                IP(dst=client_ip, src=self.ip_address)/ \
                                UDP(dport=client_udp_sport, sport=53)/ \
                                DNS(id=dns_request_layer.id, qr=1, aa=1, qd=dns_request_layer.qd, \
@@ -1613,8 +1757,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--duration",
         type=int,
-        default=60,
-        help="Total simulation duration in minutes (default: 60)"
+        default=240,
+        help="Total simulation duration in minutes (default: 240)"
     )
     args = parser.parse_args()
 
@@ -1664,9 +1808,9 @@ if __name__ == "__main__":
     if isinstance(client2, ClientNormal2) and isinstance(dvwa_server, WebServerDVWA) and isinstance(faucet_controller, FaucetController):
         video_stream_start_delay_seconds = 5
         video_stream_event_time = sim_start_time + datetime.timedelta(seconds=video_stream_start_delay_seconds)
-        VIDEO_STREAM_ACTIVE_DURATION_SECONDS = 30
+        # VIDEO_STREAM_ACTIVE_DURATION_SECONDS = 30 # Removed this line
         client2.start_video_stream(event_scheduler, master_clock, dvwa_server, faucet_controller,
-                                   video_stream_event_time, VIDEO_STREAM_ACTIVE_DURATION_SECONDS)
+                                   video_stream_event_time, args.duration) # Pass total sim duration in minutes
     else:
         print(f"WARN: Types mismatch for video stream scheduling: client2={type(client2)}, dvwa_server={type(dvwa_server)}, faucet={type(faucet_controller)}")
 
@@ -1676,7 +1820,7 @@ if __name__ == "__main__":
         web_browse_start_delay_seconds = 2
         web_browse_event_time = sim_start_time + datetime.timedelta(seconds=web_browse_start_delay_seconds)
         client1.start_web_browsing(event_scheduler, master_clock, DNS_QUERY_NAME, dvwa_server,
-                                   router_gateway, faucet_controller, web_browse_event_time)
+                                   router_gateway, faucet_controller, web_browse_event_time, args.duration)
     else:
         print(f"WARN: Types mismatch for web browsing scheduling: client1={type(client1)}, dvwa_server={type(dvwa_server)}, router={type(router_gateway)}, faucet={type(faucet_controller)}")
 
@@ -1686,11 +1830,12 @@ if __name__ == "__main__":
     # --- Schedule Attacker Nmap Scan ---
     if isinstance(attacker, Attacker) and isinstance(router_gateway, RouterGateway) and \
        isinstance(faucet_controller, FaucetController):
-        nmap_scan_start_delay_seconds = 10
-        nmap_scan_event_time = sim_start_time + datetime.timedelta(seconds=nmap_scan_start_delay_seconds)
+        # NMAP_SCAN_START_DELAY_SECONDS is already defined
+        nmap_scan_event_time = sim_start_time + datetime.timedelta(seconds=NMAP_SCAN_START_DELAY_SECONDS)
         attacker.start_nmap_scan(event_scheduler, master_clock, NMAP_TARGET_IPS,
                                 NMAP_TARGET_PORTS_COMMON, router_gateway,
-                                faucet_controller, ALL_HOSTS, nmap_scan_event_time)
+                                faucet_controller, ALL_HOSTS, nmap_scan_event_time,
+                                False, simulation_end_time) # is_rescan=False, pass simulation_end_time
     else:
         print(f"WARN: Types mismatch for Nmap scan scheduling: attacker={type(attacker)}, router={type(router_gateway)}, faucet={type(faucet_controller)}")
 
